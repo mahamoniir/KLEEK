@@ -1,0 +1,241 @@
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>مختبر إضاءة الأسوار</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f3f1ee;--card:#fff;--tx:#1a1816;--mu:#6d675f;--ln:#d9d4cc;--ac:#eb1b26;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e0d0c;--card:#1a1816;--tx:#f2eee8;--mu:#9a938a;--ln:#2e2a26}}
+:root[data-theme="dark"]{--bg:#0e0d0c;--card:#1a1816;--tx:#f2eee8;--mu:#9a938a;--ln:#2e2a26}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:400 14px/1.6 'IBM Plex Sans Arabic',Tahoma,sans-serif}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:12px;padding:12px;max-width:1500px;margin:0 auto}
+@media(max-width:880px){.app{grid-template-columns:minmax(0,1fr)}}
+.st{position:sticky;top:0;align-self:start}.cvw{position:relative;aspect-ratio:16/10;min-height:250px;border-radius:8px;overflow:hidden;background:#030303}
+canvas{width:100%;height:100%;display:block;touch-action:none}
+.hud{position:absolute;inset:auto 8px 8px 8px;display:flex;gap:6px;flex-wrap:wrap}
+#msg{position:absolute;top:8px;inset-inline:8px;background:rgba(0,0,0,.65);color:#fff;border-radius:6px;padding:4px 10px;display:none;font-size:13px}
+button,select{font:500 13px inherit;font-family:inherit;color:var(--tx);background:var(--card);border:1px solid var(--ln);border-radius:6px;padding:6px 10px;cursor:pointer}
+button.on{border-color:var(--ac);color:var(--ac)}button.p{background:var(--ac);border-color:var(--ac);color:#fff}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+h1{font-size:18px;margin:0 0 8px}.pn{display:flex;flex-direction:column;gap:8px}
+details{background:var(--card);border:1px solid var(--ln);border-radius:8px;padding:8px 12px}summary{font-weight:700;cursor:pointer}
+.sl{display:grid;grid-template-columns:1fr auto;margin:8px 0}.sl input[type=range]{grid-column:1/3;width:100%;accent-color:var(--ac)}.sl b{font-weight:500;color:var(--mu);direction:ltr}
+.rw{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:8px 0}.rw select{flex:1;min-width:0}.mu{color:var(--mu);font-size:12.5px;margin:6px 0}
+input[type=color]{width:38px;height:28px;padding:0;border:1px solid var(--ln);border-radius:6px;background:none}
+</style></head><body>
+<div class="app"><div class="st"><div class="cvw"><canvas id="cv"></canvas><div id="msg"></div>
+<div class="hud"><button data-e="morning">صباح</button><button data-e="noon">ظهر</button><button data-e="night">ليل</button><button id="bL">الكشافات: تشغيل</button><button id="bC" hidden>تصوّر الشعاع</button><button id="bVR" class="p">دخول VR</button></div></div></div>
+<div class="pn"><h1>مختبر إضاءة الأسوار</h1>
+<details open><summary>الكشاف / الشجرة المحددة</summary><div id="sel"></div></details>
+<details open><summary>الكشافات</summary>
+<div class="rw"><select id="ct"></select></div>
+<div class="rw"><button id="pF" class="p">تركيب بالنقر على السور</button><button id="aP">كشاف لكل بانل</button><button id="dA">حذف الكل</button></div>
+<div id="mh"></div>
+<div class="rw"><label class="mu">رفع ملف IES:</label><input type="file" id="ies" accept=".ies"></div>
+<div class="mu" id="pl">اسحبي الكشاف على السور لتحريكه. ملف IES يحدد زاوية الشعاع وكمية الضوء ويُطبَّق على الكشاف المحدد.</div></details>
+<details open><summary>السور</summary><div id="wp"></div></details>
+<details><summary>الأشجار والنباتات</summary><div class="rw"><select id="tt"><option value="tree">شجرة</option><option value="shrub">شجيرة</option><option value="palm">نخلة</option></select><button id="pT">تركيب بالنقر</button></div><div class="mu">اضغطي على الأرض/الحشائش لتركيب نبات. اختاري نبات ثم Delete أو زر الحذف لإزالته.</div></details>
+<details><summary>الخامات (Materials)</summary><div id="mp"></div><div class="mu">اختاري الخامة، غيّري اللون والخشونة والنتوء وحجم النقشة، أو ارفعي صورة جديدة للخامة.</div></details>
+<details><summary>الإضاءة العامة</summary><div id="gp"></div></details></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const $=s=>document.querySelector(s),rad=Math.PI/180,cv=$('#cv');
+const msg=t=>{const m=$('#msg');m.textContent=t;m.style.display=t?'block':'none'};
+const R=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+R.physicallyCorrectLights=true;R.outputEncoding=THREE.sRGBEncoding;R.toneMapping=THREE.ACESFilmicToneMapping;R.shadowMap.enabled=true;R.setPixelRatio(Math.min(devicePixelRatio,2));
+const S=new THREE.Scene();S.fog=new THREE.Fog('#000',45,170);
+const cam=new THREE.PerspectiveCamera(42,1.6,.1,300),oc=new THREE.OrbitControls(cam,cv);
+cam.position.set(-9,1.9,7.5);oc.target.set(-3,1.4,0);oc.maxPolarAngle=1.5;oc.update();
+function rs(){const p=cv.parentElement;R.setSize(p.clientWidth,p.clientHeight,false);cam.aspect=p.clientWidth/p.clientHeight;cam.updateProjectionMatrix()}
+new ResizeObserver(rs).observe(cv.parentElement);
+const G={on:true,cones:false,mul:1,my:1.8,K:.003};
+// ---------- textures ----------
+function cvTex(w,h,draw,rep){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.encoding=THREE.sRGBEncoding;t.anisotropy=4;if(rep)t.repeat.set(...rep);return t}
+const rnd=(a,b)=>a+Math.random()*(b-a),gr=v=>`rgb(${v},${v},${v})`;
+const tStuc=cvTex(256,256,(x,w,h)=>{x.fillStyle=gr(205);x.fillRect(0,0,w,h);for(let i=0;i<5000;i++){x.fillStyle=gr(rnd(150,255)|0);x.fillRect(rnd(0,w),rnd(0,h),rnd(1,4),rnd(1,3))}});
+const tStone=cvTex(256,256,(x,w,h)=>{x.fillStyle=gr(40);x.fillRect(0,0,w,h);for(let r=0;r<8;r++)for(let c=0;c<4;c++){const o=(r%2)*32;x.fillStyle=gr(rnd(110,200)|0);x.fillRect(c*64+o+2,r*32+2,60,28)}});
+const tGr=cvTex(128,128,(x,w,h)=>{x.fillStyle='#4c8a2a';x.fillRect(0,0,w,h);for(let i=0;i<2500;i++){x.fillStyle=`hsl(${rnd(80,110)},60%,${rnd(20,40)}%)`;x.fillRect(rnd(0,w),rnd(0,h),1,3)}},[60,2]);
+const tPv=cvTex(256,256,(x,w,h)=>{x.fillStyle='#222';x.fillRect(0,0,w,h);for(let r=0;r<16;r++)for(let c=0;c<8;c++){x.fillStyle=gr(rnd(70,130)|0);x.fillRect(c*32+(r%2)*16+1,r*16+1,30,14)}},[50,10]);
+// ---------- environment ----------
+const hemi=new THREE.HemisphereLight(0xffffff,0x444444,1),sun=new THREE.DirectionalLight(0xffffff,1);
+sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-32,right:32,top:32,bottom:-32,far:140});sun.shadow.bias=-.0002;sun.shadow.normalBias=.08;S.add(hemi,sun);
+const MX=32,U={fxP:{value:Array.from({length:MX},()=>new THREE.Vector3())},fxD:{value:Array.from({length:MX},()=>new THREE.Vector3(0,-1,0))},fxK:{value:Array.from({length:MX},()=>new THREE.Vector3())},fxC:{value:Array.from({length:MX},()=>new THREE.Vector2(1,1))},fxN:{value:0},fxR:{value:Array(MX).fill(80)}};
+function lit(m){m.onBeforeCompile=sh=>{Object.assign(sh.uniforms,U);
+ sh.vertexShader=sh.vertexShader.replace('void main() {','varying vec3 vWP;\nvoid main() {').replace('#include <begin_vertex>','#include <begin_vertex>\n#ifdef USE_INSTANCING\nvWP=(modelMatrix*instanceMatrix*vec4(transformed,1.0)).xyz;\n#else\nvWP=(modelMatrix*vec4(transformed,1.0)).xyz;\n#endif');
+ sh.fragmentShader=sh.fragmentShader.replace('void main() {',`varying vec3 vWP;uniform vec3 fxP[${MX}];uniform vec3 fxD[${MX}];uniform vec3 fxK[${MX}];uniform float fxR[${MX}];uniform vec2 fxC[${MX}];uniform int fxN;\nvoid main() {`).replace('#include <lights_fragment_begin>',`#include <lights_fragment_begin>\n{vec3 nW=normalize((vec4(normal,0.)*viewMatrix).xyz);for(int i=0;i<${MX};i++){if(i>=fxN)break;vec3 L=fxP[i]-vWP;float d2=dot(L,L);L*=inversesqrt(max(d2,1e-6));float a=smoothstep(fxC[i].x,fxC[i].y,dot(-L,fxD[i]));reflectedLight.directDiffuse+=fxK[i]*(a*max(dot(nW,L),0.)/max(d2,.01))*mix(vec3(dot(diffuseColor.rgb,vec3(.299,.587,.114))),diffuseColor.rgb,.45+.55*clamp((fxR[i]-50.)/45.,0.,1.))*RECIPROCAL_PI;}}`)};return m}
+const mm=(o)=>lit(new THREE.MeshStandardMaterial(o));
+function fxSync(){S.updateMatrixWorld();let n=0;items.forEach(it=>{if(it.k!='fx')return;it.h.forEach(h=>{if(!h.sp.visible||n>=MX)return;U.fxP.value[n].setFromMatrixPosition(h.hd.matrixWorld);U.fxD.value[n].set(0,-1,0).transformDirection(h.hd.matrixWorld);U.fxK.value[n].set(h.sp.color.r,h.sp.color.g,h.sp.color.b).multiplyScalar(h.sp.intensity);U.fxR.value[n]=h.sp.cri;U.fxC.value[n].set(Math.cos(h.sp.angle),Math.cos(h.sp.angle*(1-h.sp.penumbra)));n++})});U.fxN.value=n}
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(400,400),mm({color:0x6b6556,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.02;ground.receiveShadow=true;S.add(ground);
+const grass=new THREE.Mesh(new THREE.PlaneGeometry(120,1.3),mm({map:tGr,roughness:1}));grass.rotation.x=-Math.PI/2;grass.position.set(0,.01,.85);grass.receiveShadow=true;S.add(grass);
+const pave=new THREE.Mesh(new THREE.PlaneGeometry(120,20),mm({map:tPv,roughness:.9}));pave.rotation.x=-Math.PI/2;pave.position.set(0,.005,11.8);pave.receiveShadow=true;S.add(pave);
+const cb=new THREE.InstancedMesh(new THREE.BoxGeometry(1,.18,.22),mm({roughness:.8}),72),m4=new THREE.Matrix4(),cc=new THREE.Color();
+for(let i=0;i<72;i++){cb.setMatrixAt(i,m4.makeTranslation(-35.5+i,.09,1.6));cb.setColorAt(i,cc.set(i%2?'#e6e6e6':'#2a2a2a'))}cb.receiveShadow=true;S.add(cb);
+const fa=cvTex(128,256,(x,w,h)=>{x.fillStyle='#d6cfc0';x.fillRect(0,0,w,h);x.fillStyle='#3b4552';for(let r=0;r<8;r++)for(let c=0;c<4;c++)x.fillRect(c*32+8,r*32+8,16,18)},[3,2]);
+const em=cvTex(128,256,(x,w,h)=>{x.fillStyle='#000';x.fillRect(0,0,w,h);for(let r=0;r<8;r++)for(let c=0;c<4;c++)if(Math.random()<.35){x.fillStyle='#ffd9a0';x.fillRect(c*32+8,r*32+8,16,18)}},[3,2]);
+const bm=mm({map:fa,emissive:0xffffff,emissiveMap:em,emissiveIntensity:0,roughness:.9});
+[[-18,16,14],[2,20,16],[22,14,14]].forEach(([x,h,w])=>{const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,10),bm);b.position.set(x,h/2,-16);b.castShadow=true;S.add(b)});
+const ENV={morning:{sky:'#a9c8e8',el:18,az:75,si:3.5,sc:'#ffd0a0',h:1.6,hs:'#bcd6f0',hg:'#8a7a60',win:0,on:false},noon:{sky:'#7fb8ee',el:72,az:20,si:5,sc:'#fff4e0',h:2.4,hs:'#cfe4ff',hg:'#9a8f78',win:0,on:false},night:{sky:'#050a1c',el:40,az:-60,si:.25,sc:'#8aa0d0',h:.35,hs:'#2a3a70',hg:'#0c0c12',win:1,on:true}};
+function setEnv(n){const e=ENV[n];S.background=new THREE.Color(e.sky);S.fog.color.set(e.sky);sun.color.set(e.sc);sun.intensity=e.si;const a=e.az*rad,l=e.el*rad;sun.position.set(Math.sin(a)*Math.cos(l)*60,Math.sin(l)*60,Math.cos(a)*Math.cos(l)*60);hemi.color.set(e.hs);hemi.groundColor.set(e.hg);hemi.intensity=e.h;bm.emissiveIntensity=e.win;G.on=e.on;items.forEach(i=>i.k=='fx'&&upd(i));window.curE=n;hud();document.querySelectorAll('[data-e]').forEach(b=>b.classList.toggle('on',b.dataset.e==n))}
+// ---------- wall ----------
+const W={L:24,h:2.8,pw:4,pil:.5,stuc:'#d8c28a',stone:'#8a8a86'},WZ=.16,wg=new THREE.Group();S.add(wg);let pcs=[],tot=0;
+const mS=mm({map:tStuc,bumpMap:tStuc,bumpScale:.7,roughness:.95}),mK=mm({map:tStone,bumpMap:tStone,bumpScale:1,roughness:.9});
+function bx(w,h,d,x,y,z,m){const g=new THREE.BoxGeometry(w,h,d),uv=g.attributes.uv,k=[[d,h],[d,h],[w,d],[w,d],[w,h],[w,h]];for(let i=0;i<24;i++){const q=k[i>>2];uv.setXY(i,uv.getX(i)*q[0],uv.getY(i)*q[1])}const o=new THREE.Mesh(g,m);o.position.set(x,y,z);o.castShadow=o.receiveShadow=true;wg.add(o)}
+function buildWall(){wg.children.slice().forEach(c=>{wg.remove(c);c.geometry.dispose()});mS.color.set(W.stuc);mK.color.set(W.stone);
+ const n=Math.max(1,Math.round(W.L/(W.pw+W.pil)));tot=(n+1)*W.pil+n*W.pw;const s=-tot/2,h=W.h;pcs=[];
+ bx(tot,h,.3,0,h/2,0,mK);bx(tot,.5,.36,0,.25,0,mK);bx(tot+.2,.45,.42,0,h-.225,0,mK);
+ for(let i=0;i<=n;i++)bx(W.pil,h,.38,s+i*(W.pw+W.pil)+W.pil/2,h/2,0,mK);
+ for(let i=0;i<n;i++){const x=s+W.pil+W.pw/2+i*(W.pw+W.pil);pcs.push(x);bx(W.pw,h-.95,.32,x,.5+(h-.95)/2,0,mS)}
+ items.forEach(i=>{if(i.k=='fx'){i.d.x=Math.max(-tot/2+.3,Math.min(tot/2-.3,i.d.x));i.d.y=Math.min(i.d.y,h-.3);upd(i)}})}
+// ---------- fixtures ----------
+const TY={cube:{n:'مكعب (Down)',s:'b',w:.14,h:.2,d:.14,dn:1,b:50},cyl:{n:'أسطواني (Down)',s:'c',w:.1,h:.26,d:.1,dn:1,b:46},slim:{n:'رفيع طويل (Down)',s:'b',w:.06,h:.34,d:.08,dn:1,b:40},ud:{n:'ثنائي الاتجاه Up & Down',s:'b',w:.12,h:.28,d:.12,dn:1,up:1,b:45},sq:{n:'عريض مسطح (Down)',s:'b',w:.3,h:.1,d:.1,dn:1,b:70}};
+const cG=new THREE.ConeGeometry(1,1,32,1,true);cG.translate(0,-.5,0);const nr=()=>{};
+function kel(k){k/=100;const c=v=>Math.max(0,Math.min(255,v))/255,r=k<=66?255:329.698727446*Math.pow(k-60,-.1332047592),g=k<=66?99.4708025861*Math.log(k)-161.1195681661:288.1221695283*Math.pow(k-60,-.0755148492),b=k>=66?255:k<=19?0:138.5177312231*Math.log(k-10)-305.0447927307;return new THREE.Color(c(r),c(g),c(b))}
+const items=[],profs=[];let selI=null,place=null;
+function mkFx(it){const d=it.d,t=TY[d.t],g=new THREE.Group();g.userData.it=it;
+ const bmat=mm({color:d.col,roughness:.5,metalness:.4,side:THREE.DoubleSide}),hid=new THREE.MeshBasicMaterial({visible:false}),top=t.up?hid:bmat,body=new THREE.Mesh(t.s=='c'?new THREE.CylinderGeometry(t.w/2,t.w/2,t.h,24):new THREE.BoxGeometry(t.w,t.h,t.d),t.s=='c'?[bmat,top,hid]:[bmat,bmat,top,hid,bmat,bmat]);it.bmat=bmat;body.position.z=t.d/2;body.castShadow=true;g.add(body);it.body=body;it.h=[];
+ [t.dn&&-1,t.up&&1].forEach(dir=>{if(!dir)return;const hd=new THREE.Group();hd.position.set(0,dir*t.h/2,Math.min(t.d/2,.04));
+  const sp={color:new THREE.Color(),intensity:0,angle:0,penumbra:0,visible:true,cri:80};
+  const gl=new THREE.Mesh(new THREE.CircleGeometry(Math.min(t.w,t.d)*.35,16),new THREE.MeshBasicMaterial({side:THREE.DoubleSide}));gl.rotation.x=Math.PI/2;gl.position.set(0,.014,t.d/2-Math.min(t.d/2,.04));gl.raycast=nr;
+  const co=new THREE.Mesh(cG,new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,uniforms:{c:{value:new THREE.Color()}},vertexShader:'varying float y;void main(){y=position.y;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'uniform vec3 c;varying float y;void main(){float f=1.+y;gl_FragColor=vec4(c*.2*f*f,1.);}'}));co.raycast=nr;
+  hd.add(gl,co);g.add(hd);it.h.push({hd,sp,gl,co,up:dir>0})});
+ it.g=g;S.add(g)}
+function upd(it){const d=it.d,c=kel(d.k),on=d.on&&G.on;it.g.position.set(d.x,d.y,WZ);it.bmat.color.set(d.col);it.bmat.roughness=d.rg;it.bmat.metalness=d.mt;
+ const half=Math.min(1.5,d.beam/2*(1+d.soft)*rad),pen=d.soft/(1+d.soft),cd=d.w*d.eff/(2*Math.PI*(1-Math.cos(Math.max(8,d.beam)*rad/2)))*G.K*G.mul;
+ it.h.forEach(h=>{h.hd.rotation.x=h.up?Math.PI-d.aim*rad:d.aim*rad;h.sp.color.copy(c);h.sp.cri=d.cri;h.sp.intensity=cd;h.sp.angle=half;h.sp.penumbra=pen;h.sp.visible=on;
+  h.gl.material.color.copy(c).multiplyScalar(on?4:.15);const L=2.4,r=Math.tan(half)*L;h.co.scale.set(r,L,r);h.co.material.uniforms.c.value.copy(c);h.co.visible=false});
+ if(selI==it)hl()}
+function addFx(x,y,t,ex){const tt=t||$('#ct').value,d={t:tt,col:'#1b1b1b',k:2700,w:3,eff:100,cri:80,rg:.5,mt:.4,beam:TY[tt].b,soft:.9,aim:0,x,y,on:true,pi:-1,...ex},it={k:'fx',d};mkFx(it);items.push(it);upd(it);return it}
+function rmIt(it){S.remove(it.g);items.splice(items.indexOf(it),1);if(selI==it)sel(null)}
+// ---------- plants ----------
+const gm=c=>mm({color:c,roughness:.9,flatShading:true});
+function mkTr(it){const d=it.d,g=new THREE.Group();g.userData.it=it;it.fol=[];const fm=c=>{const m=gm(d.fc||c);it.fol.push(m);return m};const add=(geo,m,x,y,z,p)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);o.castShadow=o.receiveShadow=true;(p||g).add(o);return o};
+ if(d.t=='tree'){add(new THREE.CylinderGeometry(.08,.13,2.2,8),gm(0x5b4330),0,1.1,0);[[0,2.7,0,1.1],[.5,2.3,.2,.8],[-.5,2.4,-.2,.85],[0,3.3,0,.7]].forEach(([x,y,z,r])=>add(new THREE.IcosahedronGeometry(r,1),fm(0x3f7a2f),x,y,z))}
+ else if(d.t=='shrub'){[[0,.35,0,.4],[.35,.28,.1,.3],[-.35,.3,-.1,.32],[.1,.3,.35,.28],[-.1,.55,0,.3]].forEach(([x,y,z,r])=>add(new THREE.IcosahedronGeometry(r,1),fm(0x4d8a35),x,y,z))}
+ else{add(new THREE.CylinderGeometry(.09,.16,3.4,8),gm(0x7a6244),0,1.7,0);for(let i=0;i<9;i++){const lg=new THREE.Group();lg.position.y=3.4;lg.rotation.y=i*40*rad;g.add(lg);const th=Math.PI/2+.6;const l=add(new THREE.ConeGeometry(.14,1.7,4),fm(0x3d7a2c),0,.8*Math.cos(th),.8*Math.sin(th),lg);l.rotation.x=th;l.scale.z=.3}}
+ it.g=g;it.hlo=g;S.add(g)}
+function updT(it){const d=it.d;it.g.position.set(d.x,0,d.z);it.g.scale.set(d.s,d.s*d.sy,d.s);if(selI==it)hl()}
+function addTr(t,x,z,s){const it={k:'tr',d:{t,x,z,s:s||1,sy:1}};mkTr(it);items.push(it);updT(it);return it}
+// ---------- UI helpers ----------
+const el=h=>{const d=document.createElement('div');d.innerHTML=h;return d.firstElementChild};
+function sk(p,lb,min,max,st,d,key,u,fn){const w=el(`<div class="sl"><span>${lb}</span><b></b><input type="range" min="${min}" max="${max}" step="${st}"></div>`),i=w.querySelector('input'),b=w.querySelector('b'),sh=()=>b.textContent=(+i.value).toFixed(st<1?(st<.1?2:1):0)+(u||'');i.value=d[key];sh();i.oninput=()=>{d[key]=+i.value;sh();fn&&fn()};p.append(w)}
+function se(p,lb,o,v,fn){const w=el(`<div class="rw"><span>${lb}</span><select>${o.map(([a,t])=>`<option value="${a}">${t}</option>`).join('')}</select></div>`),s=w.querySelector('select');s.value=v;s.onchange=()=>fn(s.value);p.append(w)}
+function co(p,lb,d,key,fn){const w=el(`<div class="rw"><span>${lb}</span><input type="color"></div>`),i=w.querySelector('input');i.value=d[key];i.oninput=()=>{d[key]=i.value;fn()};p.append(w)}
+function bt(p,t,fn,c){const b=el(`<div class="rw"><button class="${c||''}">${t}</button></div>`);b.firstElementChild.onclick=fn;p.append(b);return b.firstElementChild}
+const bh=new THREE.BoxHelper(new THREE.Object3D(),0xeb1b26);bh.material.depthTest=false;bh.visible=false;S.add(bh);
+function hl(){if(!selI){bh.visible=false;return}bh.setFromObject(selI.k=='fx'?selI.body:selI.g);bh.visible=true}
+function sel(it){selI=it;const p=$('#sel');p.innerHTML='';hl();
+ if(!it){p.innerHTML='<div class="mu">اضغطي على كشاف أو شجرة في المشهد لتعديلها.</div>';return}
+ const d=it.d,u=()=>upd(it);
+ if(it.k=='fx'){
+  se(p,'النوع',Object.entries(TY).map(([k,v])=>[k,v.n]),d.t,v=>{d.t=v;d.beam=TY[v].b;S.remove(it.g);mkFx(it);upd(it);sel(it)});
+  se(p,'ملف IES',[['-1','يدوي (Beam Angle)'],...profs.map((x,i)=>[i,x.n])],d.pi,v=>{d.pi=+v;if(d.pi>=0){const x=profs[d.pi];d.beam=x.beam;d.soft=x.soft;d.w=Math.max(1,Math.round(x.lm/d.eff))}u();sel(it)});
+  sk(p,'الموضع على السور',-tot/2+.3,tot/2-.3,.05,d,'x',' م',u);sk(p,'ارتفاع التركيب',.3,W.h-.2,.05,d,'y',' م',u);
+  sk(p,'زاوية الشعاع Beam Angle',8,120,1,d,'beam','°',u);sk(p,'نعومة الحافة (Field)',0,2,.05,d,'soft','',u);
+  sk(p,'ميل الشعاع نحو السور',-30,60,1,d,'aim','°',u);sk(p,'درجة اللون',1800,6500,50,d,'k',' K',u);sk(p,'مؤشر تجسيد اللون CRI',50,98,1,d,'cri','',()=>fu());sk(p,'القدرة Power',1,100,1,d,'w',' W',()=>fu());sk(p,'الكفاءة Efficacy',50,180,5,d,'eff',' lm/W',()=>fu());p.append(el('<div class="mu fl"></div>'));const fu=()=>{u();p.querySelector('.fl').textContent='الفلوكس الناتج: '+Math.round(d.w*d.eff)+' lm'};fu();sk(p,'خشونة جسم الكشاف',0,1,.05,d,'rg','',u);sk(p,'معدنية الجسم',0,1,.05,d,'mt','',u);
+  co(p,'لون جسم الكشاف',d,'col',u);
+  const r=el('<div class="rw"></div>');p.append(r);[['تشغيل/إطفاء',()=>{d.on=!d.on;u()}],['نسخ',()=>{const n=addFx(Math.min(tot/2-.3,d.x+.6),d.y,d.t,{...d});sel(n)}],['حذف',()=>rmIt(it)]].forEach(([t,f])=>{const b=el('<button></button>');b.textContent=t;b.onclick=f;r.append(b)});
+ }else{
+  se(p,'النوع',[['tree','شجرة'],['shrub','شجيرة'],['palm','نخلة']],d.t,v=>{d.t=v;d.fc=null;S.remove(it.g);mkTr(it);updT(it);sel(it)});
+  sk(p,'الحجم الكلي',.2,5,.05,d,'s','×',()=>updT(it));sk(p,'تمدد الارتفاع',.4,2.5,.05,d,'sy','×',()=>updT(it));d.fc=d.fc||({tree:'#3f7a2f',shrub:'#4d8a35',palm:'#3d7a2c'})[d.t];co(p,'لون الأوراق',d,'fc',()=>it.fol.forEach(m=>m.color.set(d.fc)));sk(p,'الموضع الأفقي',-30,30,.1,d,'x',' م',()=>updT(it));sk(p,'المسافة عن السور',.5,1.3,.05,d,'z',' م',()=>updT(it));
+  bt(p,'حذف',()=>rmIt(it));}}
+// ---------- panels ----------
+$('#ct').innerHTML=Object.entries(TY).map(([k,v])=>`<option value="${k}">${v.n}</option>`).join('');
+bt($('#mh'),'',()=>{});$('#mh').innerHTML='';sk($('#mh'),'ارتفاع التركيب الافتراضي',.5,3,.05,G,'my',' م');
+const wr=()=>buildWall();sk($('#wp'),'طول السور',6,60,1,W,'L',' م',wr);sk($('#wp'),'ارتفاع السور',1.8,4,.1,W,'h',' م',wr);sk($('#wp'),'عرض البانل',2,8,.1,W,'pw',' م',wr);co($('#wp'),'لون البانل (بياض/دهان)',W,'stuc',wr);co($('#wp'),'لون الحجر',W,'stone',wr);
+sk($('#gp'),'سطوع المشهد (Exposure)',.2,2.5,.05,{e:1},'e','',function(){});
+$('#gp').innerHTML='';const EX={e:.9};R.toneMappingExposure=EX.e;sk($('#gp'),'سطوع المشهد (Exposure)',.2,2.5,.05,EX,'e','',()=>R.toneMappingExposure=EX.e);sk($('#gp'),'قوة الكشافات',.2,4,.05,G,'mul','×',()=>items.forEach(i=>i.k=='fx'&&upd(i)));
+function hud(){$('#bL').textContent='الكشافات: '+(G.on?'تشغيل':'إطفاء');$('#bC').classList.toggle('on',G.cones)}
+document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>setEnv(b.dataset.e));
+$('#bL').onclick=()=>{G.on=!G.on;items.forEach(i=>i.k=='fx'&&upd(i));hud()};$('#bC').onclick=()=>{G.cones=!G.cones;items.forEach(i=>i.k=='fx'&&upd(i));hud()};
+function setPlace(k,f){place=(place==k&&!f)?null:k;$('#pF').classList.toggle('on',place=='fx');$('#pT').classList.toggle('on',place=='tr');msg(place=='fx'?'اضغطي على السور لتركيب كشاف':place=='tr'?'اضغطي على الأرض لتركيب نبات':'')}
+$('#pF').onclick=()=>setPlace('fx');$('#pT').onclick=()=>setPlace('tr');$('#ct').onchange=()=>setPlace('fx',1);$('#tt').onchange=()=>setPlace('tr',1);
+$('#aP').onclick=()=>pcs.forEach(x=>{if(!items.some(i=>i.k=='fx'&&Math.abs(i.d.x-x)<.3))addFx(x,G.my)});
+$('#dA').onclick=()=>items.filter(i=>i.k=='fx').forEach(rmIt);
+// ---------- IES ----------
+function parseIES(t,name){const L=t.split(/\r?\n/),i=L.findIndex(l=>/^TILT/i.test(l));if(i<0)throw 0;let n=L.slice(i+1).join(' ').split(/[\s,]+/).filter(Boolean).map(Number);
+ if(/INCLUDE/i.test(L[i])){n=n.slice(2+2*n[1])}
+ const[lamps,lum,mult,nv,nh]=n,c0=13+nv+nh,va=n.slice(13,13+nv),cd=n.slice(c0,c0+nv).map(v=>v*mult),pk=Math.max(...cd),ip=cd.indexOf(pk);
+ const ang=f=>{for(let j=ip+1;j<nv;j++)if(cd[j]<=pk*f){const a=cd[j-1],b=cd[j];return va[j-1]+(va[j]-va[j-1])*(a-pk*f)/(a-b||1)}return va[nv-1]};
+ const be=Math.max(8,2*Math.abs(ang(.5)-va[ip])),fi=Math.max(be,2*Math.abs(ang(.1)-va[ip])),nm=(t.match(/\[LUMCAT\]\s*(.+)/)||t.match(/\[MANUFAC\]\s*(.+)/)||[0,name])[1].slice(0,28);
+ const lm=lum>0?lum*lamps:pk*2*Math.PI*(1-Math.cos(be*rad/2));return{n:nm+` (${Math.round(be)}°)`,beam:Math.min(120,Math.round(be)),soft:Math.max(0,Math.min(2,fi/be-1)),lm:Math.max(50,Math.min(2000,Math.round(lm)))}}
+$('#ies').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const p=parseIES(await f.text(),f.name);profs.push(p);if(selI&&selI.k=='fx'){const d=selI.d;d.pi=profs.length-1;d.beam=p.beam;d.soft=p.soft;d.w=Math.max(1,Math.round(p.lm/d.eff));upd(selI);sel(selI)}
+ $('#pl').textContent=`تم تحميل: ${p.n} — Beam ${p.beam}°، ${p.lm} lm. ${selI?'اتطبق على الكشاف المحدد.':'اختاري كشاف لتطبيقه عليه.'}`}catch(_){$('#pl').textContent='ملف IES غير صالح.'}e.target.value=''};
+// ---------- pointer ----------
+const rc=new THREE.Raycaster(),mv=new THREE.Vector2(),pF=new THREE.Plane(new THREE.Vector3(0,0,1),-WZ),pG=new THREE.Plane(new THREE.Vector3(0,1,0),0),v3=new THREE.Vector3();let drag=null,dn=null;
+function ray(e){const r=cv.getBoundingClientRect();mv.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);rc.setFromCamera(mv,cam)}
+function pick(){const h=rc.intersectObjects(items.map(i=>i.g),true)[0];if(!h)return null;let o=h.object;while(o&&!o.userData.it)o=o.parent;return o&&o.userData.it}
+cv.addEventListener('pointerdown',e=>{ray(e);dn={x:e.clientX,y:e.clientY};const it=place?null:pick();if(it){sel(it);drag=it;oc.enabled=false}});
+function moveTo(it,p){const d=it.d;if(it.k=='fx'){d.x=Math.max(-tot/2+.3,Math.min(tot/2-.3,p.x));d.y=Math.max(.3,Math.min(W.h-.2,p.y));upd(it)}else{d.x=Math.max(-30,Math.min(30,p.x));d.z=Math.max(.5,Math.min(1.3,p.z));updT(it)}}
+cv.addEventListener('pointermove',e=>{if(!drag)return;ray(e);if(rc.ray.intersectPlane(drag.k=='fx'?pF:pG,v3))moveTo(drag,v3)});
+cv.addEventListener('pointercancel',()=>{oc.enabled=true;drag=null});
+cv.addEventListener('pointerup',e=>{oc.enabled=true;const was=drag;drag=null;if(was){sel(was);return}if(!dn||Math.hypot(e.clientX-dn.x,e.clientY-dn.y)>5)return;ray(e);
+ if(place=='fx'){const h=rc.intersectObjects(wg.children)[0];if(h&&h.point.z>.1){sel(addFx(h.point.x,Math.max(.3,Math.min(W.h-.2,h.point.y))))}}
+ else if(place=='tr'){if(rc.ray.intersectPlane(pG,v3))sel(addTr($('#tt').value,v3.x,Math.max(.5,Math.min(1.3,v3.z))))}
+ else if(!pick())sel(null)});
+cv.addEventListener('wheel',e=>{if(selI&&selI.k=='tr'&&e.shiftKey){e.preventDefault();selI.d.s=Math.max(.2,Math.min(5,selI.d.s*(e.deltaY<0?1.06:.94)));updT(selI)}},{passive:false});
+addEventListener('keydown',e=>{if(e.key=='Delete'&&selI&&!/INPUT|SELECT/.test(document.activeElement.tagName))rmIt(selI)});
+// ---------- VR ----------
+const dolly=new THREE.Group();S.add(dolly);dolly.add(cam);R.xr.enabled=true;try{R.xr.setFramebufferScaleFactor(.8)}catch(_){}
+const PW=1024,PH=1536,pc=document.createElement('canvas');pc.width=PW;pc.height=PH;const px=pc.getContext('2d'),ptex=new THREE.CanvasTexture(pc);ptex.encoding=THREE.sRGBEncoding;
+const panel=new THREE.Mesh(new THREE.PlaneGeometry(.9,1.35),new THREE.MeshBasicMaterial({map:ptex,toneMapped:false,fog:false}));panel.position.set(-.85,1.25,-1.1);panel.rotation.y=.55;panel.visible=false;dolly.add(panel);
+const VT=['كشافات','السور','البيئة','نباتات'],PAL=['#d8c28a','#e8e0d0','#b08a5a','#8f9a7a','#caa7a0','#6d6a64'],STN=['#8a8a86','#555555','#a49a88','#7a6a58'],CL=['#1b1b1b','#c8c8c8','#8a6a3a','#ffffff','#b87333'],TN={tree:'شجرة',shrub:'شجيرة',palm:'نخلة'};
+let vt=0,regs=[],vtype='cube',vtree='tree';const cyc=(a,v)=>a[(a.indexOf(v)+1)%a.length],FT=n=>`500 ${n}px "IBM Plex Sans Arabic",Tahoma,sans-serif`;
+function vrRows(){const o=[],it=selI,sl=(l,ob,k,mn,mx,st,u,fn)=>o.push({t:'s',l,ob,k,mn,mx,st,u:u||'',fn}),bn=(l,f,on)=>o.push({t:'b',l,f,on}),K=Object.keys(TY);
+ if(vt==0){bn('نوع الكشاف الجديد: '+TY[vtype].n,()=>{vtype=cyc(K,vtype);$('#ct').value=vtype;setPlace('fx',1)});
+  bn(place=='fx'?'وضع التركيب: شغّال ✓ (وجّهي للسور + زناد)':'وضع التركيب: متوقف (اضغطي للتشغيل)',()=>setPlace('fx'),place=='fx');
+  bn('كشاف لكل بانل',()=>$('#aP').click());bn('حذف كل الكشافات',()=>$('#dA').click());
+  if(it&&it.k=='fx'){const d=it.d,u=()=>upd(it),ids=[-1,...profs.map((_,i)=>i)];bn('— الكشاف المحدد —');
+   bn('النوع: '+TY[d.t].n,()=>{d.t=cyc(K,d.t);d.beam=TY[d.t].b;S.remove(it.g);mkFx(it);upd(it)});
+   bn('ملف IES: '+(d.pi>=0?profs[d.pi].n:'يدوي (Beam Angle)'),()=>{d.pi=cyc(ids,d.pi);if(d.pi>=0){const x=profs[d.pi];d.beam=x.beam;d.soft=x.soft;d.w=Math.max(1,Math.round(x.lm/d.eff))}u()});
+   sl('الموضع',d,'x',-tot/2+.3,tot/2-.3,.05,' م',u);sl('الارتفاع',d,'y',.3,W.h-.2,.05,' م',u);sl('Beam Angle',d,'beam',8,120,1,'°',u);sl('نعومة الحافة',d,'soft',0,2,.05,'',u);sl('الميل نحو السور',d,'aim',-30,60,1,'°',u);sl('درجة اللون',d,'k',1800,6500,50,' K',u);sl('CRI',d,'cri',50,98,1,'',u);sl('القدرة',d,'w',1,100,1,' W',u);sl('الكفاءة',d,'eff',50,180,5,' lm/W',u);
+   bn('لون الجسم (تبديل)',()=>{d.col=cyc(CL,d.col);u()});bn(d.on?'إطفاء الكشاف':'تشغيل الكشاف',()=>{d.on=!d.on;u()});bn('نسخ',()=>sel(addFx(Math.min(tot/2-.3,d.x+.6),d.y,d.t,{...d})));bn('حذف',()=>rmIt(it))}
+  else bn('وجّهي الليزر على كشاف واضغطي لتحديده')}
+ else if(vt==1){sl('طول السور',W,'L',6,60,1,' م',buildWall);sl('ارتفاع السور',W,'h',1.8,4,.1,' م',buildWall);sl('عرض البانل',W,'pw',2,8,.1,' م',buildWall);bn('لون البانل (تبديل)',()=>{W.stuc=cyc(PAL,W.stuc);buildWall()});bn('لون الحجر (تبديل)',()=>{W.stone=cyc(STN,W.stone);buildWall()})}
+ else if(vt==2){[['morning','صباح'],['noon','ظهر'],['night','ليل']].forEach(([k,n])=>bn(n,()=>setEnv(k),window.curE==k));bn(G.on?'الكشافات: تشغيل':'الكشافات: إطفاء',()=>{G.on=!G.on;items.forEach(i=>i.k=='fx'&&upd(i));hud()},G.on);sl('سطوع المشهد',EX,'e',.2,2.5,.05,'',()=>R.toneMappingExposure=EX.e);sl('قوة الكشافات',G,'mul',.2,4,.05,'×',()=>items.forEach(i=>i.k=='fx'&&upd(i)))}
+ else{bn('النبات الجديد: '+TN[vtree],()=>{vtree=cyc(Object.keys(TN),vtree);$('#tt').value=vtree;setPlace('tr',1)});bn(place=='tr'?'وضع التركيب: شغّال ✓ (وجّهي للأرض + زناد)':'وضع التركيب: متوقف',()=>setPlace('tr'),place=='tr');
+  if(it&&it.k=='tr'){const d=it.d,u=()=>updT(it);bn('— النبات المحدد —');sl('الحجم',d,'s',.2,5,.05,'×',u);sl('الارتفاع',d,'sy',.4,2.5,.05,'×',u);sl('الموضع',d,'x',-30,30,.1,' م',u);sl('المسافة عن السور',d,'z',.5,1.3,.05,' م',u);bn('حذف',()=>rmIt(it))}}
+ return o}
+function drawP(){const rows=vrRows();regs=[];px.clearRect(0,0,PW,PH);px.fillStyle='rgba(20,18,16,.96)';px.fillRect(0,0,PW,PH);px.direction='rtl';
+ VT.forEach((n,i)=>{const x=PW-(i+1)*256;px.fillStyle=i==vt?'#eb1b26':'#2c2824';px.fillRect(x+4,8,248,84);px.fillStyle='#fff';px.font=FT(32);px.textAlign='center';px.fillText(n,x+128,64);regs.push({x0:x,x1:x+256,y0:8,y1:92,w:{t:'tab',i}})});
+ let y=104;rows.forEach(w=>{const h=w.t=='s'?76:54;if(y+h>PH-60)return;px.fillStyle=w.on?'#6a1a20':'#2a2623';px.fillRect(20,y,PW-40,h-6);px.fillStyle='#f2eee8';px.font=FT(28);
+  if(w.t=='b'){px.textAlign='center';px.fillText(w.l,PW/2,y+h/2+6)}
+  else{px.textAlign='right';px.fillText(w.l,PW-36,y+34);px.textAlign='left';const v=+w.ob[w.k];px.fillText(v.toFixed(w.st<1?(w.st<.1?2:1):0)+w.u,36,y+34);px.fillStyle='#4a443e';px.fillRect(40,y+56,944,10);const r=(v-w.mn)/(w.mx-w.mn);px.fillStyle='#eb1b26';px.fillRect(40,y+56,944*r,10);px.fillStyle='#fff';px.beginPath();px.arc(40+944*r,y+61,14,0,7);px.fill()}
+  if(w.f||w.t=='s')regs.push({x0:20,x1:PW-20,y0:y,y1:y+h-6,w});y+=h});
+ px.fillStyle='#9a938a';px.font=FT(22);px.textAlign='center';px.fillText('الزناد: اختيار / تركيب / سحب  •  Grip: إخفاء اللوحة  •  عصا اليسار: مشي  •  عصا اليمين: دوران',PW/2,PH-24);ptex.needsUpdate=true}
+function vrSlide(r,x){const w=r.w,v=Math.max(0,Math.min(1,(x-40)/944)),q=Math.round((w.mn+v*(w.mx-w.mn))/w.st)*w.st;w.ob[w.k]=+q.toFixed(3);w.fn&&w.fn()}
+function vrPress(c,h){const x=h.uv.x*PW,y=(1-h.uv.y)*PH;for(const r of regs)if(x>=r.x0&&x<=r.x1&&y>=r.y0&&y<=r.y1){const w=r.w;if(w.t=='tab')vt=w.i;else if(w.t=='b')w.f&&w.f();else{c.userData.sl=r;vrSlide(r,x)}drawP();return true}return false}
+const tm=new THREE.Matrix4();function cray(c){tm.identity().extractRotation(c.matrixWorld);rc.ray.origin.setFromMatrixPosition(c.matrixWorld);rc.ray.direction.set(0,0,-1).applyMatrix4(tm)}
+function vrDown(c){cray(c);if(panel.visible){const h=rc.intersectObject(panel)[0];if(h&&vrPress(c,h))return}
+ if(place=='fx'){const h=rc.intersectObjects(wg.children)[0];if(h&&h.point.z>.1)sel(addFx(h.point.x,Math.max(.3,Math.min(W.h-.2,h.point.y))))}
+ else if(place=='tr'){if(rc.ray.intersectPlane(pG,v3))sel(addTr($('#tt').value,v3.x,Math.max(.5,Math.min(1.3,v3.z))))}
+ else{const it=pick();if(it){sel(it);c.userData.drag=it}else sel(null)}
+ if(panel.visible)drawP()}
+const ctr=[0,1].map(i=>{const c=R.xr.getController(i);dolly.add(c);const ln=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(0,0,-1)]),new THREE.LineBasicMaterial({color:0xffffff,fog:false}));ln.scale.z=5;c.add(ln);c.userData.ln=ln;
+ c.addEventListener('selectstart',()=>vrDown(c));c.addEventListener('selectend',()=>{c.userData.drag=null;c.userData.sl=null});c.addEventListener('squeezestart',()=>{panel.visible=!panel.visible;if(panel.visible)drawP()});return c});
+let turn=0;
+function vrTick(){ctr.forEach(c=>{const u=c.userData;cray(c);let len=5;if(panel.visible){const h=rc.intersectObject(panel)[0];if(h){len=h.distance;if(u.sl){vrSlide(u.sl,h.uv.x*PW);drawP()}}}
+  if(u.drag&&rc.ray.intersectPlane(u.drag.k=='fx'?pF:pG,v3))moveTo(u.drag,v3);u.ln.scale.z=len});
+ const ss=R.xr.getSession();if(ss)for(const s of ss.inputSources){const g=s.gamepad;if(!g||g.axes.length<4)continue;const ax=g.axes[2],ay=g.axes[3];
+  if(s.handedness=='left'&&(Math.abs(ax)>.15||Math.abs(ay)>.15)){const f=v3.set(0,0,-1).applyQuaternion(cam.quaternion).applyQuaternion(dolly.quaternion);f.y=0;f.normalize();dolly.position.addScaledVector(f,-ay*.05).addScaledVector(new THREE.Vector3(-f.z,0,f.x),ax*.05)}
+  if(s.handedness=='right'){if(Math.abs(ax)>.7&&!turn){dolly.rotation.y-=Math.sign(ax)*30*rad;turn=1}else if(Math.abs(ax)<.3)turn=0}}}
+R.xr.addEventListener('sessionstart',()=>{oc.enabled=false;dolly.position.set(-3,0,3.5);dolly.rotation.set(0,0,0);panel.visible=true;drawP()});
+R.xr.addEventListener('sessionend',()=>{oc.enabled=true;dolly.position.set(0,0,0);dolly.rotation.set(0,0,0);panel.visible=false;cam.position.set(-9,1.9,7.5);oc.update();rs()});
+$('#bVR').onclick=async()=>{const m=t=>{msg(t);setTimeout(()=>msg(''),6000)};if(!navigator.xr)return m('المتصفح ده مش بيدعم WebXR. افتحي رابط الصفحة مباشرة من متصفح نظارة VR (مثلا Quest Browser) مش من داخل صفحة الشات.');
+ try{R.xr.setReferenceSpaceType('local-floor');await R.xr.setSession(await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']}))}catch(e){m('تعذر بدء VR: '+(e.message||e))}};
+// ---------- materials ----------
+const MAT={'بانل السور (دهان)':{m:mS,dim:[1,1],size:1,wk:'stuc'},'حجر السور':{m:mK,dim:[1,1],size:1,wk:'stone'},'الرصف':{m:pave.material,dim:[120,20],size:2.4},'الحشائش':{m:grass.material,dim:[120,1.3],size:1.5},'الأرض':{m:ground.material,dim:[400,400],size:3}};
+Object.values(MAT).forEach(o=>o.m0=o.m.map);let curM='بانل السور (دهان)';
+function matTile(o){const t=o.m.map;if(t)t.repeat.set(o.dim[0]/o.size,o.dim[1]/o.size)}
+function buildMp(){const p=$('#mp');p.innerHTML='';se(p,'الخامة',Object.keys(MAT).map(k=>[k,k]),curM,v=>{curM=v;buildMp()});
+ const o=MAT[curM],m=o.m,P={rough:m.roughness,met:m.metalness,bump:m.bumpScale,size:o.size,col:o.wk?W[o.wk]:'#'+m.color.getHexString()};
+ co(p,'اللون',P,'col',()=>{if(o.wk){W[o.wk]=P.col;buildWall()}else m.color.set(P.col)});
+ sk(p,'الخشونة',0,1,.05,P,'rough','',()=>m.roughness=P.rough);sk(p,'المعدنية',0,1,.05,P,'met','',()=>m.metalness=P.met);
+ sk(p,'قوة النتوء (Bump)',0,5,.1,P,'bump','',()=>m.bumpScale=P.bump);sk(p,'حجم النقشة',.2,8,.1,P,'size',' م',()=>{o.size=P.size;matTile(o)});
+ const w=el('<div class="rw"><label class="mu">صورة للخامة:</label><input type="file" accept="image/*"></div>');p.append(w);
+ w.querySelector('input').onchange=e=>{const f=e.target.files[0];if(!f)return;new THREE.TextureLoader().load(URL.createObjectURL(f),t=>{t.wrapS=t.wrapT=THREE.RepeatWrapping;t.encoding=THREE.sRGBEncoding;t.anisotropy=8;m.map=t;m.bumpMap=t;m.needsUpdate=true;if(o.wk){W[o.wk]='#ffffff';buildWall()}else m.color.set('#ffffff');matTile(o);buildMp()})};
+ bt(p,'رجوع للخامة الأصلية',()=>{m.map=o.m0;m.bumpMap=o.m0;m.needsUpdate=true;matTile(o)})}
+// ---------- init ----------
+buildWall();
+[[-10,.7,'shrub'],[-8.5,.9,'shrub'],[-6.2,.8,'palm'],[-3.2,.8,'shrub'],[-2,1,'shrub'],[1.5,.7,'shrub'],[3.2,.9,'palm'],[6.5,.8,'shrub'],[8.8,1,'shrub']].forEach(([x,z,t])=>addTr(t,x,z,t=='palm'?.7:1));
+sel(null);setEnv('night');rs();setPlace('fx');Object.values(MAT).forEach(matTile);buildMp();
+R.setAnimationLoop(()=>{if(R.xr.isPresenting)vrTick();else oc.update();fxSync();R.render(S,cam)});
+</script></body></html>
